@@ -1,0 +1,52 @@
+[package]
+authors = ['Parity Technologies <admin@parity.io>']
+edition = '2018'
+license = 'GPL-3.0'
+name = 'node-rpc'
+version = '2.0.0'
+
+[dependencies]
+jsonrpc-core = '14.0.3'
+
+[dependencies.node-primitives]
+path = '../primitives'
+version = '2.0.0'
+
+[dependencies.node-runtime]
+path = '../runtime'
+version = '2.0.0'
+
+[dependencies.pallet-contracts-rpc]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '0.8.0'
+
+[dependencies.pallet-transaction-payment-rpc]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '2.0.0'
+
+[dependencies.sc-client]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '0.8'
+
+[dependencies.sp-api]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '2.0.0'
+
+[dependencies.sp-runtime]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '2.0.0'
+
+[dependencies.sp-transaction-pool]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '2.0.0'
+
+[dependencies.substrate-frame-rpc-system]
+git = 'https://github.com/paritytech/substrate.git'
+rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+version = '2.0.0'
