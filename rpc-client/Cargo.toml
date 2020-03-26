@@ -1,10 +1,3 @@
-[package]
-authors = ['Parity Technologies <admin@parity.io>']
-edition = '2018'
-license = 'GPL-3.0'
-name = 'node-rpc-client'
-version = '2.0.0'
-
 [dependencies]
 env_logger = '0.7.0'
 futures = '0.1.29'
@@ -24,5 +17,12 @@ version = '2.0.0'
 
 [dependencies.sc-rpc]
 git = 'https://github.com/paritytech/substrate.git'
-rev = 'de2ffd937db78093efaa58d7cc08f5599a8f4728'
+rev = '3bc3bb6b385f275e482935f82ae4b8ab5c0e00e8'
+version = '2.0.0'
+
+[package]
+authors = ['Parity Technologies <admin@parity.io>']
+edition = '2018'
+license = 'GPL-3.0'
+name = 'node-rpc-client'
 version = '2.0.0'

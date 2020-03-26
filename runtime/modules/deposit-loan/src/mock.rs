@@ -2,14 +2,14 @@
 #![allow(dead_code)]
 
 use super::*;
-use primitives::H256;
+use crate::{GenesisConfig, Module, Trait};
+use balances;
+use sp_core::H256;
+pub use sp_core::{sr25519, Pair, Public};
+use std::cell::RefCell;
 use support::{
     impl_outer_dispatch, impl_outer_event, impl_outer_origin, parameter_types, weights::Weight,
 };
-use crate::{GenesisConfig, Module, Trait};
-use balances;
-use assets;
-use std::cell::RefCell;
 
 #[allow(unused_imports)]
 use sp_runtime::{
@@ -25,90 +25,36 @@ thread_local! {
 }
 
 pub mod constants {
-    use super::TestRuntime;
-
+    use super::Test;
     pub const DECIMALS: u128 = 100000000; // satoshi
+    pub const USDT: <Test as generic_asset::Trait>::AssetId = 0;
+    pub const BTC: <Test as generic_asset::Trait>::AssetId = 1;
 
-    pub const ROOT: <TestRuntime as system::Trait>::AccountId = 1;
-    pub const ALICE: <TestRuntime as system::Trait>::AccountId = 2;
-    pub const BOB: <TestRuntime as system::Trait>::AccountId = 3;
-    pub const CHRIS: <TestRuntime as system::Trait>::AccountId = 4;
-    #[allow(dead_code)]
-    pub const DAVE: <TestRuntime as system::Trait>::AccountId = 5;
-    pub const TEAM: <TestRuntime as system::Trait>::AccountId = 6;
-    pub const PROFIT_POOL: <TestRuntime as system::Trait>::AccountId = 7;
-
-    pub const COLLECTION_ACCOUNT_ID: <TestRuntime as system::Trait>::AccountId = 999;
-    pub const PAWN_SHOP: <TestRuntime as system::Trait>::AccountId = 888;
-    pub const LIQUIDATION_ACCOUNT: <TestRuntime as system::Trait>::AccountId = 8;
-
-    pub const NUM_OF_PHASE: u32 = 5;
-
-    pub const RBTC_INITIAL_BALANCE: u128 = 1000000 * DECIMALS;
-    pub const RSC1_INITIAL_BALANCE: u128 = 1000000 * DECIMALS;
-    pub const RSC2_INITIAL_BALANCE: u128 = 1000000 * DECIMALS;
-    pub const RSC3_INITIAL_BALANCE: u128 = 1000000 * DECIMALS;
-    pub const RSC4_INITIAL_BALANCE: u128 = 1000000 * DECIMALS;
-    pub const RSC5_INITIAL_BALANCE: u128 = 1000000 * DECIMALS;
-    pub const SBTC_INITIAL_BALANCE: u128 = 0 * DECIMALS;
-
-    pub const RBTC_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 1;
-    pub const RSC1_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 2;
-    pub const RSC2_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 3;
-    pub const RSC3_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 4;
-    pub const RSC4_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 5;
-    pub const RSC5_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 6;
-    pub const SBTC_ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 7;
-    pub const ASSET_ID: <TestRuntime as pallet_generic_asset::Trait>::AssetId = 8;
+    //TODO:     pub const DAVE: <Test as frame_system::Trait>::AccountId = 5;
 }
 
 use self::constants::*;
 
-// For testing the module, we construct most of a mock runtime. This means
-// first constructing a configuration type (`Test`) which `impl`s each of the
-// configuration traits of modules we want to use.
-#[derive(Clone, Eq, PartialEq)]
-pub struct TestRuntime;
-
 impl_outer_origin! {
-    pub enum Origin for TestRuntime {}
+    pub enum Origin for Test {}
 }
 
-mod deposit_loan {
-    pub use crate::Event;
-}
-impl_outer_event! {
-    pub enum TestEvent for TestRuntime {
-        deposit_loan<T>,
-    }
-}
-type Balances = balances::Module<TestRuntime>;
-type System = system::Module<TestRuntime>;
-type Sudo = sudo::Module<TestRuntime>;
-type Assets = assets::Module<TestRuntime>;
-impl_outer_dispatch! {
-    pub enum Call for TestRuntime where origin: Origin {
-        balances::Balances,
-        system::System,
-        sudo::Sudo,
-        assets::Assets,
-    }
-}
-
+#[derive(Clone, Eq, PartialEq)]
+pub struct Test;
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
-    pub const MaximumBlockWeight: u32 = 1024;
+    pub const MaximumBlockWeight: Weight = 1024;
     pub const MaximumBlockLength: u32 = 2 * 1024;
     pub const AvailableBlockRatio: Perbill = Perbill::one();
 }
-impl system::Trait for TestRuntime {
+impl system::Trait for Test {
     type Origin = Origin;
+    type Call = ();
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
-    type Call = ();
     type Hashing = BlakeTwo256;
-    type AccountId = u64;
+    type AccountId = sp_core::sr25519::Public; // <<Signature as Verify>::Signer as IdentifyAccount>::AccountId; // sp_core::sr25519::Public;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type Event = ();
@@ -118,145 +64,169 @@ impl system::Trait for TestRuntime {
     type AvailableBlockRatio = AvailableBlockRatio;
     type Version = ();
     type ModuleToIndex = ();
-}
-parameter_types! {
-    pub const ExistentialDeposit: u128 = 0;
-    pub const TransferFee: u128 = 0;
-    pub const CreationFee: u128 = 0;
-}
-impl balances::Trait for TestRuntime {
-    type Balance = u128;
-    // type OnFreeBalanceZero = ();
+    type AccountData = ();
     type OnNewAccount = ();
-    type Event = ();
-    type TransferPayment = ();
-    type DustRemoval = ();
-    type ExistentialDeposit = ExistentialDeposit;
-    // type TransferFee = TransferFee;
-    type CreationFee = CreationFee;
     type OnReapAccount = ();
 }
 
+// type Extrinsic = TestXt<new_oracle::Call<Test>, ()>;
+type SubmitTransaction =
+    system::offchain::TransactionSubmitter<new_oracle::crypto::Public, Test, Extrinsic>;
+
+// impl system::offchain::CreateTransaction<Test, Extrinsic> for Test {
+//     type Public = sp_core::sr25519::Public;
+//     type Signature = sp_core::sr25519::Signature;
+
+//     fn create_transaction<F: system::offchain::Signer<Self::Public, Self::Signature>>(
+//         call: <Extrinsic as ExtrinsicsT>::Call,
+//         _public: Self::Public,
+//         _account: <Test as system::Trait>::AccountId,
+//         nonce: <Test as system::Trait>::Index,
+//     ) -> Option<(
+//         <Extrinsic as ExtrinsicsT>::Call,
+//         <Extrinsic as ExtrinsicsT>::SignaturePayload,
+//     )> {
+//         Some((call, (nonce, ())))
+//     }
+// }
+
 parameter_types! {
-    pub const MinimumPeriod: u64 = 1000;
+    pub const MinimumPeriod: u64 = 5;
 }
-impl timestamp::Trait for TestRuntime {
+impl timestamp::Trait for Test {
     type Moment = u64;
     type OnTimestampSet = ();
     type MinimumPeriod = MinimumPeriod;
 }
-impl sudo::Trait for TestRuntime {
+impl sudo::Trait for Test {
     type Event = ();
-    type Proposal = Call;
+    type Call = Call<Test>;
 }
-
-parameter_types! {
-    pub const REPORTER: <TestRuntime as system::Trait>::AccountId = 1;
-}
-
-impl price::Trait for TestRuntime {
-    type Event = ();
-    type OracleMixedIn = (); // OracleMixedIn 为trait
-    type ReportOrigin = ();
-    type OnChange = ();
-}
-
-impl pallet_generic_asset::Trait for TestRuntime {
+impl generic_asset::Trait for Test {
     type Event = ();
     type Balance = u128;
     type AssetId = u32;
 }
-impl assets::Trait for TestRuntime {
-    type Event = ();
-    type OnAssetMint = ();
-    type OnAssetCreate = ();
-    type OnAssetTransfer = ();
-    type OnAssetBurn = ();
-    type BeforeAssetMint = ();
-    type BeforeAssetCreate = ();
-    type BeforeAssetTransfer = ();
-    type BeforeAssetBurn = ();
+
+type BlockNumber = u64;
+
+parameter_types! {
+    pub const AggregateInterval: BlockNumber = 5;
 }
-impl Trait for TestRuntime {
+impl new_oracle::Trait for Test {
+    type Event = ();
+    type Call = new_oracle::Call<Test>;
+    type SubmitUnsignedTransaction = SubmitTransaction;
+    type SubmitSignedTransaction = SubmitTransaction;
+    type AggregateInterval = AggregateInterval;
+    type PriceInUSDT = u64;
+}
+
+impl Trait for Test {
     type Event = ();
 }
 
-pub type DepositLoanTest = Module<TestRuntime>;
+type Balances = balances::Module<Test>;
+type System = system::Module<Test>;
+type Sudo = sudo::Module<Test>;
 
-pub type SystemTest = system::Module<TestRuntime>;
+pub type DepositLoanTest = Module<Test>;
+pub type SystemTest = system::Module<Test>;
+pub type GenericAssetTest = generic_asset::Module<Test>;
 
 pub struct ExtBuilder {}
-
 impl Default for ExtBuilder {
     fn default() -> Self {
         Self {}
     }
 }
-
 impl ExtBuilder {
-    pub fn build(self) -> runtime_io::TestExternalities {
+    pub fn build(self) -> sp_io::TestExternalities {
         new_test_ext()
     }
 }
 
-// This function basically just builds a genesis storage key/value store according to
-// our desired mockup.
-pub fn new_test_ext() -> runtime_io::TestExternalities {
+/// Helper function to generate a crypto pair from seed
+pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
+    TPublic::Pair::from_string(&format!("//{}", seed), None)
+        .expect("static values are valid; qed")
+        .public()
+}
+
+pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
-        .build_storage::<TestRuntime>()
+        .build_storage::<Test>()
         .unwrap();
 
-    sudo::GenesisConfig::<TestRuntime> { key: ROOT }
+    let root: <Test as system::Trait>::AccountId = get_from_seed::<sr25519::Public>("Root");
+    let market_dtoken_account_id: <Test as system::Trait>::AccountId =
+        get_from_seed::<sr25519::Public>("market_dtoken_account_id");
+    let total_dtoken_account_id: <Test as system::Trait>::AccountId =
+        get_from_seed::<sr25519::Public>("total_dtoken_account_id");
+    let collection_account_id: <Test as system::Trait>::AccountId =
+        get_from_seed::<sr25519::Public>("collection_account_id");
+    let profit_pool: <Test as system::Trait>::AccountId =
+        get_from_seed::<sr25519::Public>("profit_pool");
+    let pawn_shop: <Test as system::Trait>::AccountId =
+        get_from_seed::<sr25519::Public>("pawn_shop");
+    let liquidation_account: <Test as system::Trait>::AccountId =
+        get_from_seed::<sr25519::Public>("liquidation_account");
+
+    sudo::GenesisConfig::<Test> { key: root }
         .assimilate_storage(&mut t)
         .unwrap();
 
-    pallet_generic_asset::GenesisConfig::<TestRuntime> {
-        next_asset_id: 9,
-        staking_asset_id: 0,
-        spending_asset_id: 0,
+    // new_oracle::GenesisConfig::<Test> {
+    //     crypto_price_sources: vec![],
+    //     current_price: vec![
+    //         (b"BTC".to_vec(), 10000 * new_oracle::PRICE_SCALE),
+    //         (b"DUSD".to_vec(), 1 * new_oracle::PRICE_SCALE),
+    //     ],
+    // }
+    // .assimilate_storage(&mut t)
+    // .unwrap();
+
+    generic_asset::GenesisConfig::<Test> {
+        next_asset_id: 2,
         assets: vec![],
         initial_balance: 0,
         endowed_accounts: vec![],
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-
-    assets::GenesisConfig::<TestRuntime> {
         symbols: vec![
-            (SBTC_ASSET_ID, "SBTC".as_bytes().to_vec()),
-            (RBTC_ASSET_ID, "RBTC".as_bytes().to_vec()),
-            (RSC1_ASSET_ID, "RSC1".as_bytes().to_vec()),
-            (RSC2_ASSET_ID, "RSC2".as_bytes().to_vec()),
-            (RSC3_ASSET_ID, "RSC3".as_bytes().to_vec()),
-            (RSC4_ASSET_ID, "RSC4".as_bytes().to_vec()),
-            (RSC5_ASSET_ID, "RSC5".as_bytes().to_vec()),
-            (ASSET_ID, "RIO".as_bytes().to_vec()),    // TODO: change name
+            (0, "DUSD".as_bytes().to_vec()),
+            (1, "BTC".as_bytes().to_vec()),
         ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
-    GenesisConfig::<TestRuntime> {
-        current_btc_price: 8000_0000,
-        collateral_asset_id: SBTC_ASSET_ID,
-        loan_asset_id: ASSET_ID,
-        global_ltv_limit: 6500,
-        global_liquidation_threshold: 9000,
-        global_warning_threshold: 8000,
-        next_loan_id: 1,
-        next_loan_package_id: 1,
-        pawn_shop: PAWN_SHOP,
-        profit_pool: PROFIT_POOL,
-        penalty_rate: 200,
-        liquidation_account: LIQUIDATION_ACCOUNT,
-        minimum_collateral: 2_000_0000,
-        liquidation_penalty: 1300,
-        collection_account_id: COLLECTION_ACCOUNT_ID,
-        collection_asset_id: SBTC_ASSET_ID,
-        profit_asset_id: ASSET_ID,
-        reserved_mint_asset_id: ASSET_ID,
-        reserved_mint_wallet: BOB,
-        share_asset_id: RBTC_ASSET_ID,
+    GenesisConfig::<Test> {
+        market_dtoken_account_id: market_dtoken_account_id,
+        total_dtoken_account_id: total_dtoken_account_id,
+        collection_account_id: collection_account_id,
+        profit_pool: profit_pool,
+        pawn_shop: pawn_shop,
+        liquidation_account: liquidation_account,
+
+        collection_asset_id: 0,
+        dtoken_asset_id: 1,
+        market_dtoken_asset_id: 2,
+        total_dtoken_asset_id: 3,
+
+        profit_asset_id: 0,
+
+        collateral_asset_id: 4,
+        loan_asset_id: 0,
+
+        global_ltv_limit: 100000000,
+        global_liquidation_threshold: 100000000,
+        global_warning_threshold: 800000000,
+
+        loan_interest_rate_current: 10,
+        next_loan_id: 0,
+        current_btc_price: 8899000,
+        penalty_rate: 12,
+        minimum_collateral: 1,
+        liquidation_penalty: 12,
     }
     .assimilate_storage(&mut t)
     .unwrap();
