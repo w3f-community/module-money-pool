@@ -4,7 +4,11 @@ Definex is a Financial market protocol that provides both liquid money markets f
 
 + It will automatically adjust the interest rates based on the amount saved and the amount borrowed.
 
-+ $$f(x)= \begin{cases} 0.1x+0.05& \text{0<=x<0.4}\\ 0.2x+0.01& \text{0.4<=x!<0.8}\\ 0.3x^6 + 0.1x^3+0.06& \text{0.8<=x<=1} \end{cases}$$
++ We are working on a three-level interest rate based on cash utilization rate that is partially influenced by the economic pricing for scarce resources and our belief that the demand for stable coin is relatively inelastic in different utilization rate intervals.  The exact loan interest rate is yet to be determined but it would look like this : 
+
+  $$f(x)= \begin{cases} 0.1x+0.05& \text{0<=x<0.4}\\ 0.2x+0.01& \text{0.4<=x!<0.8}\\ 0.3x^6 + 0.1x^3+0.06& \text{0.8<=x<=1} \end{cases}$$
+
+   Utilization rate X = Total borrows / (Total deposits + Total Borrows)
 
 ## In Progress
 
