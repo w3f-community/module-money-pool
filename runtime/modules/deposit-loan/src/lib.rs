@@ -1,3 +1,8 @@
+// use new_oracle to get btc price
+// Notice：the btc price used here is consered as two assets exchange ratio.
+// let current_price = <new_oracle::Module<T>>::current_price(&token);
+// let price: u64 = TryInto::<u64>::try_into(current_price).unwrap_or(0);
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[allow(unused_imports)]
@@ -30,13 +35,6 @@ use support::{
 
 #[allow(unused_imports)]
 use frame_system::{self as system, ensure_root, ensure_signed};
-
-// pub use generic_asset;
-
-// use new_oracle to get btc price
-// Notice：the btc price used here is consered as two assets exchange ratio.
-// let current_price = <new_oracle::Module<T>>::current_price(&token);
-// let price: u64 = TryInto::<u64>::try_into(current_price).unwrap_or(0);
 
 mod mock;
 mod tests;
@@ -201,13 +199,13 @@ decl_storage! {
         // CurrentBTCPrice get(current_btc_price) config() : PriceInUSDT;
 
         /// total balance of loan asset in circulation
-        TotalLoan get(total_loan) : T::Balance;                     // TODO: 这些都提前设置为0；collection这些也想先设置为0
+        TotalLoan get(total_loan) : T::Balance;
 
         /// total balance of collateral asset locked in the pawnshop
-        TotalCollateral get(total_collateral) : T::Balance;         // TODO: 这些都提前设置为0
+        TotalCollateral get(total_collateral) : T::Balance;
 
         /// when a loan is overdue, a small portion of its collateral will be cut as penalty
-        pub PenaltyRate get(penalty_rate) config() : u32;           // TODO: 这些都提前设置为0
+        pub PenaltyRate get(penalty_rate) config() : u32;
 
         /// the official account take charge of selling the collateral asset of liquidating loans
         LiquidationAccount get(liquidation_account) config() : T::AccountId;
@@ -516,10 +514,6 @@ impl<T: Trait> Module<T> {
 
         let mut user_dtoken = T::Balance::from(0);
 
-        // TODO: 需要乘一个系数
-        // TODO: let price_prec_in_balance = T::Balance::from(PRICE_PREC);
-        // TODO: let ltv_prec_in_balance = T::Balance::from(LTV_PREC);
-
         let ltv_prec_in_balance = T::Balance::from(LTV_PREC);
         if total_dtoken_amount.is_zero() {
             user_dtoken = balance;
@@ -701,10 +695,11 @@ impl<T: Trait> Module<T> {
 
                 let loan_id = Self::get_next_loan_id();
 
-                let collateral_balance_available = actual_collateral_amount - loan_amount
-                    * T::Balance::from(LTV_PREC)
-                    * T::Balance::from(PRICE_PREC)
-                    / <T::Balance as TryFrom<u128>>::try_from(btc_price as u128).ok().unwrap();
+                let collateral_balance_available = actual_collateral_amount
+                    - loan_amount * T::Balance::from(LTV_PREC) * T::Balance::from(PRICE_PREC)
+                        / <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
+                            .ok()
+                            .unwrap();
 
                 let loan = Loan {
                     id: loan_id,
@@ -714,22 +709,6 @@ impl<T: Trait> Module<T> {
                     loan_balance_total: actual_loan_amount,
                     status: Default::default(),
                 };
-
-                // <generic_asset::Module<T>>::mint_free(
-                //     &loan_asset_id,
-                //     &<sudo::Module<T>>::key(),
-                //     &who,
-                //     &actual_loan_amount,
-                // )
-                // .or_else(|(err)| -> DispatchResult {
-                //     <generic_asset::Module<T>>::make_transfer_with_event(
-                //         &collateral_asset_id,
-                //         &shop,
-                //         &who,
-                //         actual_collateral_amount,
-                //     )?;
-                //     Err(err)
-                // })?;
 
                 <generic_asset::Module<T>>::make_transfer_with_event(
                     &collection_asset_id,
@@ -758,8 +737,6 @@ impl<T: Trait> Module<T> {
         if collateral_amount.is_zero() && loan_amount.is_zero() {
             return Err(Error::<T>::InvalidCollateralLoanAmounts)?;
         }
-
-        // let btc_price = CurrentBTCPrice::get();
 
         // TODO: In fact btc_price is the Conversion ratio of collateral asset and loan asset
         // Ensure generic_asset exist collateral symbols
@@ -882,13 +859,6 @@ impl<T: Trait> Module<T> {
             Err(err)
         })?;
 
-        // <generic_asset::Module<T>>::burn_free(
-        //     &loan_asset_id,
-        //     &<sudo::Module<T>>::key(),
-        //     &pawn_shop,
-        //     &loan.loan_balance_total,
-        // )?;
-
         Self::deposit_event(RawEvent::LoanRepaid(
             loan_id,
             loan.loan_balance_total,
@@ -915,8 +885,8 @@ impl<T: Trait> Module<T> {
 
         let collection_asset_id = Self::collection_asset_id();
         let collection_account_id = Self::collection_account_id();
-        let collateral_asset_id = Self::collateral_asset_id();    
-    
+        let collateral_asset_id = Self::collateral_asset_id();
+
         let loan_asset_id = Self::loan_asset_id();
         ensure!(
             <generic_asset::Module<T>>::free_balance(&loan_asset_id, &liquidation_account)
@@ -1090,11 +1060,15 @@ impl<T: Trait> Module<T> {
 
         let global_ltv = Self::global_ltv_limit();
         let available_credit = loan.collateral_balance_available
-            * <T::Balance as TryFrom<u128>>::try_from(btc_price as u128).ok().unwrap()
-            * <T::Balance as TryFrom<u64>>::try_from(global_ltv).ok().unwrap()
+            * <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
+                .ok()
+                .unwrap()
+            * <T::Balance as TryFrom<u64>>::try_from(global_ltv)
+                .ok()
+                .unwrap()
             / T::Balance::from(LTV_PREC)
             / T::Balance::from(PRICE_PREC);
-            // - loan.loan_balance_total;
+        // - loan.loan_balance_total;
         ensure!(amount <= available_credit, "short of available credit");
 
         <Loans<T>>::mutate(loan_id, |v| {
@@ -1102,11 +1076,11 @@ impl<T: Trait> Module<T> {
         });
 
         <Loans<T>>::mutate(loan_id, |v| {
-            v.collateral_balance_available -= 
-            amount
-            * T::Balance::from(LTV_PREC)
-            * T::Balance::from(PRICE_PREC)
-            / <T::Balance as TryFrom<u128>>::try_from(btc_price as u128).ok().unwrap();
+            v.collateral_balance_available -=
+                amount * T::Balance::from(LTV_PREC) * T::Balance::from(PRICE_PREC)
+                    / <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
+                        .ok()
+                        .unwrap();
         });
 
         <TotalLoan<T>>::mutate(|v| *v += amount);
@@ -1178,15 +1152,19 @@ impl<T: Trait> Module<T> {
         let total_loan = Self::total_loan();
         let collection_asset_id = Self::collection_asset_id();
         let collection_account_id = Self::collection_account_id();
-        let total_deposit = <generic_asset::Module<T>>::free_balance(&collection_asset_id, &collection_account_id) + Self::total_loan();
+        let total_deposit =
+            <generic_asset::Module<T>>::free_balance(&collection_asset_id, &collection_account_id)
+                + Self::total_loan();
         let current_time = <timestamp::Module<T>>::get();
 
         let total_loan = TryInto::<u128>::try_into(total_loan).ok().unwrap();
         let total_deposit = TryInto::<u128>::try_into(total_deposit).ok().unwrap();
 
         if !(total_deposit + total_loan).is_zero() {
-            
-            let utilization_rate_x = total_loan.checked_mul(10_u128.pow(8)).expect("saving share overflow") / (total_deposit + total_loan);
+            let utilization_rate_x = total_loan
+                .checked_mul(10_u128.pow(8))
+                .expect("saving share overflow")
+                / (total_deposit + total_loan);
 
             let loan_interest_rate_current = if utilization_rate_x < 4000_00000 {
                 (1.checked_mul(&utilization_rate_x).expect("overflow") + 4) / 10
@@ -1200,9 +1178,10 @@ impl<T: Trait> Module<T> {
                 20.checked_mul(&utilization_rate_x).expect("overflow") + 1
             };
 
-            let loan_interest_rate_current: T::Balance = TryFrom::<u128>::try_from(loan_interest_rate_current)
-                .ok()
-                .unwrap();
+            let loan_interest_rate_current: T::Balance =
+                TryFrom::<u128>::try_from(loan_interest_rate_current)
+                    .ok()
+                    .unwrap();
 
             let last_bonus_time: T::Moment = Self::bonus_time();
 
@@ -1296,10 +1275,3 @@ decl_event!(
         AddCollateral(LoanId, Balance),
     }
 );
-
-// implement the price::OnChange hook to be aware of the price changes
-// impl<T: Trait> price::OnChange for Module<T> {
-//     fn on_change(p: price::Price) {
-//         CurrentBTCPrice::put(p);
-//     }
-// }
