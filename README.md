@@ -1,5 +1,17 @@
 Definex is a Financial market protocol that provides both liquid money markets for cross-chain assets and peer-to-peer capital markets for longer-term cryptocurrency  loans. 
 
+## How it works
+
++ It will automatically adjust the interest rates based on the amount saved and the amount borrowed.
+
++ $$f(x)= \begin{cases} 0.1x+0.05& \text{0<=x<0.4}\\ 0.2x+0.01& \text{0.4<=x!<0.8}\\ 0.3x^6 + 0.1x^3+0.06& \text{0.8<=x<=1} \end{cases}$$
+
+## In Progress
+
++ We are still adding more test cases
++ Profit for teams will be added
+
+
 ## Build
 
 Install Rust:
