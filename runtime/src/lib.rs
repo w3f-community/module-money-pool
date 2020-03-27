@@ -41,7 +41,6 @@ use sp_std::prelude::*;
 use sp_version::RuntimeVersion;
 
 pub use bridge;
-pub use ls_biding::TradingPair;
 pub use new_oracle::PRICE_SCALE as ORACLE_PRICE_SCALE;
 // pub use deposit_loan;
 
@@ -630,14 +629,6 @@ impl bridge::Trait for Runtime {
     type Event = Event;
 }
 
-parameter_types! {
-    pub const DaysInBlockNumber: BlockNumber = 1 * DAYS;
-}
-impl ls_biding::Trait for Runtime {
-    type Event = Event;
-    type Days = DaysInBlockNumber;
-}
-
 type SubmitOracleTransaction =
     TransactionSubmitter<new_oracle::crypto::Public, Runtime, UncheckedExtrinsic>;
 
@@ -654,9 +645,9 @@ impl new_oracle::Trait for Runtime {
     type PriceInUSDT = u64;
 }
 
-// impl deposit_loan::Trait for Runtime {
-//     type Event = Event;
-// }
+impl deposit_loan::Trait for Runtime {
+    type Event = Event;
+}
 
 construct_runtime!(
 	pub enum Runtime where
@@ -694,9 +685,8 @@ construct_runtime!(
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
         Bridge: bridge::{Module, Call, Storage, Event<T>, Config<T>},
- //       DepositLoan: deposit_loan::{Module, Call, Storage, Event<T>, Config<T>},
+        DepositLoan: deposit_loan::{Module, Call, Storage, Event<T>, Config<T>},
         GenericAsset: generic_asset::{Module, Call, Storage, Event<T>, Config<T>},
-        LSBiding: ls_biding::{Module, Call, Storage, Event<T>, Config<T>},
         NewOracle: new_oracle::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 	}
 );

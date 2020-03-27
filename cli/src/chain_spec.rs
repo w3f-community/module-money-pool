@@ -23,8 +23,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig, DemocracyConfig,
 	GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
 	IndicesConfig, SocietyConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, WASM_BINARY,
-    // LSBidingConfig, NewOracleConfig, BridgeConfig, GenericAssetConfig, DepositLoanConfig,
-    LSBidingConfig, NewOracleConfig, BridgeConfig, GenericAssetConfig,
+    NewOracleConfig, BridgeConfig, GenericAssetConfig, DepositLoanConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -308,31 +307,31 @@ pub fn testnet_genesis(
 		}),
 		pallet_vesting: Some(Default::default()),
 
-		// deposit_loan: Some(DepositLoanConfig {
-		// 	collection_asset_id: 0,
-		// 	profit_asset_id: 0,
-		// 	dtoken_asset_id: 1,
-		// 	market_dtoken_asset_id: 2,
-		// 	total_dtoken_asset_id: 3,
-		// 	loan_interest_rate_current: 0,
-		// 	current_btc_price: 8000_0000,
-		// 	collateral_asset_id: 4,
-		// 	loan_asset_id: 0,
-		// 	global_ltv_limit: 100000000,
-		// 	global_liquidation_threshold: 100000000,
-		// 	global_warning_threshold: 800000000,
-		// 	next_loan_id: 0,
+		deposit_loan: Some(DepositLoanConfig {
+			collection_asset_id: 0,
+			profit_asset_id: 0,
+			dtoken_asset_id: 1,
+			market_dtoken_asset_id: 2,
+			total_dtoken_asset_id: 3,
+			loan_interest_rate_current: 0,
+			// current_btc_price: 8000_0000,
+			collateral_asset_id: 4,
+			loan_asset_id: 0,
+			global_ltv_limit: 100000000,
+			global_liquidation_threshold: 100000000,
+			global_warning_threshold: 800000000,
+			next_loan_id: 0,
 
-		// 	penalty_rate: 12,
-		// 	minimum_collateral: 2000_0000,
-		// 	liquidation_penalty: 1300,
-		// 	collection_account_id: get_account_id_from_seed::<sr25519::Public>("collection_account_id"),
-		// 	liquidation_account: get_account_id_from_seed::<sr25519::Public>("liquidation_account"),
-		// 	pawn_shop: get_account_id_from_seed::<sr25519::Public>("pawn_shop"),
-		// 	profit_pool: get_account_id_from_seed::<sr25519::Public>("profit_pool"),
-		// 	total_dtoken_account_id: get_account_id_from_seed::<sr25519::Public>("total_dtoken_account_id"),
-		// 	market_dtoken_account_id: get_account_id_from_seed::<sr25519::Public>("market_dtoken_account_id"),
-		// }),
+			penalty_rate: 12,
+			minimum_collateral: 2000_0000,
+			liquidation_penalty: 1300,
+			collection_account_id: get_account_id_from_seed::<sr25519::Public>("collection_account_id"),
+			liquidation_account: get_account_id_from_seed::<sr25519::Public>("liquidation_account"),
+			pawn_shop: get_account_id_from_seed::<sr25519::Public>("pawn_shop"),
+			profit_pool: get_account_id_from_seed::<sr25519::Public>("profit_pool"),
+			total_dtoken_account_id: get_account_id_from_seed::<sr25519::Public>("total_dtoken_account_id"),
+			market_dtoken_account_id: get_account_id_from_seed::<sr25519::Public>("market_dtoken_account_id"),
+		}),
 
 		bridge: Some(BridgeConfig {
 			asset_id: 1,
@@ -372,19 +371,6 @@ pub fn testnet_genesis(
 				],
 			)],
 			current_price: vec![(b"DUSD".to_vec(), 1 * node_runtime::ORACLE_PRICE_SCALE)],
-		}),
-
-		ls_biding: Some(LSBidingConfig {
-			money_pool: get_account_id_from_seed::<sr25519::Public>("definex-vault"),
-			platform: get_account_id_from_seed::<sr25519::Public>("Alice"),
-			trading_pairs: vec![node_runtime::TradingPair {
-				collateral: 1 as u32,
-				borrow: 0 as u32,
-			}],
-			safe_ltv: 30000,
-			liquidate_ltv: 15000,
-			min_borrow_terms: 1,
-			min_borrow_interest_rate: 10000,
 		}),
 	}
 }

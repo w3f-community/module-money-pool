@@ -3,6 +3,8 @@
 // let current_price = <new_oracle::Module<T>>::current_price(&token);
 // let price: u64 = TryInto::<u64>::try_into(current_price).unwrap_or(0);
 
+// TODO: 检查一遍make_transfer_with_events
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[allow(unused_imports)]
@@ -113,7 +115,8 @@ where
 }
 
 pub trait Trait:
-    frame_system::Trait + sudo::Trait + timestamp::Trait + generic_asset::Trait + new_oracle::Trait
+    // frame_system::Trait + sudo::Trait + timestamp::Trait + generic_asset::Trait + new_oracle::Trait
+    frame_system::Trait + timestamp::Trait + generic_asset::Trait + new_oracle::Trait
 {
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -391,7 +394,7 @@ decl_module! {
             let collection_account_id = Self::collection_account_id();
             ensure!(<CollectionAssetId<T>>::get() == asset_id, "can't collect this asset");
             ensure!(<generic_asset::Module<T>>::free_balance(&asset_id, &who) >= amount, "insufficient balance");
-            Self::create_staking(who.clone(), amount)?;
+            Self::create_staking(who.clone(), asset_id, amount)?;
             Ok(())
         }
 
@@ -402,7 +405,7 @@ decl_module! {
             let collection_account_id = Self::collection_account_id();
             ensure!(<CollectionAssetId<T>>::get() == asset_id, "can't collect this asset");
             ensure!(<generic_asset::Module<T>>::free_balance(&asset_id, &delegatee) >= amount, "insufficient balance");
-            Self::create_staking(delegatee.clone(), amount)?;
+            Self::create_staking(delegatee.clone(), asset_id, amount)?;
             Ok(())
         }
 
@@ -495,13 +498,14 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-    fn create_staking(who: T::AccountId, balance: T::Balance) -> DispatchResult {
+    pub fn create_staking(who: T::AccountId, asset_id: T::AssetId, balance: T::Balance) -> DispatchResult {
         ensure!(!balance.is_zero(), "saving can't be zero");
 
         let market_dtoken_account_id = Self::market_dtoken_account_id();
         let market_dtoken_asset_id = Self::market_dtoken_asset_id();
         let total_dtoken_account_id = Self::total_dtoken_account_id();
         let total_dtoken_asset_id = Self::total_dtoken_asset_id();
+        let collection_account_id = Self::collection_account_id();
 
         let market_dtoken_amount = <generic_asset::Module<T>>::free_balance(
             &market_dtoken_asset_id,
@@ -513,6 +517,13 @@ impl<T: Trait> Module<T> {
         );
 
         let mut user_dtoken = T::Balance::from(0);
+
+        <generic_asset::Module<T>>::make_transfer_with_event(
+            &asset_id,
+            &who,
+            &collection_account_id,
+            balance,
+        )?;
 
         let ltv_prec_in_balance = T::Balance::from(LTV_PREC);
         if total_dtoken_amount.is_zero() {
@@ -577,7 +588,7 @@ impl<T: Trait> Module<T> {
 
         ensure!(user_will_get >= amount, "redeem too much assets!");
         Self::make_redeem_all(&who);
-        Self::create_staking(who.clone(), user_will_get - amount).unwrap_or_default();
+        Self::create_staking(who.clone(), collection_asset_id, user_will_get - amount).unwrap_or_default();
         Ok(())
     }
 
@@ -639,8 +650,8 @@ impl<T: Trait> Module<T> {
 
         <generic_asset::Module<T>>::make_transfer_with_event(
             &collection_asset_id,
-            &who,
             &collection_account_id,
+            &who,
             user_will_get,
         )?;
         Ok(())
@@ -852,7 +863,7 @@ impl<T: Trait> Module<T> {
             revert_callback();
             <generic_asset::Module<T>>::make_transfer_with_event(
                 &loan_asset_id,
-                &pawn_shop,
+                &collection_account_id,
                 &who,
                 loan.loan_balance_total,
             )?;

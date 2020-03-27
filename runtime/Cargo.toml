@@ -384,7 +384,6 @@ std = [
     'generic-asset/std',
     'bridge/std',
     'new-oracle/std',
-    'ls-biding/std',
     'deposit-loan/std',
 ]
 [build-dependencies.wasm-builder-runner]
@@ -404,10 +403,6 @@ path = "modules/bridge"
 [dependencies.new-oracle]
 default-features = false
 path = "modules/new-oracle"
-
-[dependencies.ls-biding]
-default-features = false
-path = "modules/ls-biding"
 
 [dependencies.deposit-loan]
 default-features = false

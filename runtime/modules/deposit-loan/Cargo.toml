@@ -20,7 +20,7 @@ std = [
     "bridge/std",
     "generic-asset/std",
     "new-oracle/std",
-    "ls-biding/std",
+    # "ls-biding/std",
 ]
 
 [dependencies.sp-std]
@@ -123,6 +123,6 @@ path = "../bridge"
 default-features = false
 path = "../new-oracle"
 
-[dependencies.ls-biding]
-default-features = false
-path = "../ls-biding"
+# [dependencies.ls-biding]
+# default-features = false
+# path = "../ls-biding"
