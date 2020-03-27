@@ -110,7 +110,9 @@ cd cli && cargo build --release
     "LTV": "u64",
     "LoanId": "u64",
     "LoanPackageId": "u64",
-    "PhaseId": "u32"
+    "PhaseId": "u32",
+    "PriceInUSDT": "u64",
+    "StrBytes": "Vec<u8>"
 }
 ```
 
