@@ -84,7 +84,7 @@ cd cli && cargo build --release
         "_enum": {
             "Well": null,
             "Warning": "LTV",
-            "Liquidating": "LTV",
+            "Liquidating": "LTV"
         }
     },
     "LoanPackageStatus": {
