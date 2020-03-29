@@ -382,7 +382,7 @@ std = [
     'pallet-recovery/std',
     'pallet-vesting/std',
     'generic-asset/std',
-    'bridge/std',
+    # 'bridge/std',
     'new-oracle/std',
     'deposit-loan/std',
 ]
@@ -396,9 +396,9 @@ version = '1.0.4'
 default-features = false
 path = "modules/generic-asset"
 
-[dependencies.bridge]
-default-features = false
-path = "modules/bridge"
+# [dependencies.bridge]
+# default-features = false
+# path = "modules/bridge"
 
 [dependencies.new-oracle]
 default-features = false

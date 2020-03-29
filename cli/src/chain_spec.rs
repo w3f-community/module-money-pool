@@ -23,7 +23,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig, DemocracyConfig,
 	GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
 	IndicesConfig, SocietyConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, WASM_BINARY,
-    NewOracleConfig, BridgeConfig, GenericAssetConfig, DepositLoanConfig,
+    NewOracleConfig, GenericAssetConfig, DepositLoanConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -333,24 +333,27 @@ pub fn testnet_genesis(
 			market_dtoken_account_id: get_account_id_from_seed::<sr25519::Public>("market_dtoken_account_id"),
 		}),
 
-		bridge: Some(BridgeConfig {
-			asset_id: 1,
-			threshold: 30_0000_0000,
-			admins: vec![(
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				node_runtime::bridge::Auth::All,
-			)],
-			pending_withdraw_vault: get_account_id_from_seed::<sr25519::Public>("withdraw vault"),
-		}),
+		// bridge: Some(BridgeConfig {
+		// 	asset_id: 1,
+		// 	threshold: 30_0000_0000,
+		// 	admins: vec![(
+		// 		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		// 		node_runtime::bridge::Auth::All,
+		// 	)],
+		// 	pending_withdraw_vault: get_account_id_from_seed::<sr25519::Public>("withdraw vault"),
+		// }),
 
 		generic_asset: Some(GenericAssetConfig {
-			next_asset_id: 2,
+			next_asset_id: 5,
 			assets: vec![],
 			initial_balance: 0,
 			endowed_accounts: vec![],
 			symbols: vec![
 				(0, "DUSD".as_bytes().to_vec()),
 				(1, "BTC".as_bytes().to_vec()),
+				(2, "dtoken".as_bytes().to_vec()),
+				(3, "market_dtoken".as_bytes().to_vec()),
+				(4, "total_dtoken".as_bytes().to_vec()),
 			],
 		}),
 

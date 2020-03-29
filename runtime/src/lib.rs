@@ -40,7 +40,7 @@ use sp_runtime::{
 use sp_std::prelude::*;
 use sp_version::RuntimeVersion;
 
-pub use bridge;
+// pub use bridge;
 pub use new_oracle::PRICE_SCALE as ORACLE_PRICE_SCALE;
 // pub use deposit_loan;
 
@@ -625,9 +625,9 @@ impl generic_asset::Trait for Runtime {
     type AssetId = u32;
 }
 
-impl bridge::Trait for Runtime {
-    type Event = Event;
-}
+// impl bridge::Trait for Runtime {
+//     type Event = Event;
+// }
 
 type SubmitOracleTransaction =
     TransactionSubmitter<new_oracle::crypto::Public, Runtime, UncheckedExtrinsic>;
@@ -684,7 +684,7 @@ construct_runtime!(
 		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>},
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
-        Bridge: bridge::{Module, Call, Storage, Event<T>, Config<T>},
+        // Bridge: bridge::{Module, Call, Storage, Event<T>, Config<T>},
         DepositLoan: deposit_loan::{Module, Call, Storage, Event<T>, Config<T>},
         GenericAsset: generic_asset::{Module, Call, Storage, Event<T>, Config<T>},
         NewOracle: new_oracle::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
