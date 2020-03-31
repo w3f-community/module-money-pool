@@ -17,7 +17,6 @@ std = [
     "sp-core/std",
     "timestamp/std",
     "sudo/std",
-    "bridge/std",
     "generic-asset/std",
     "new-oracle/std",
 ]
@@ -113,10 +112,6 @@ rev = "3bc3bb6b385f275e482935f82ae4b8ab5c0e00e8"
 [dependencies.generic-asset]
 default-features = false
 path = "../generic-asset"
-
-[dependencies.bridge]
-default-features = false
-path = "../bridge"
 
 [dependencies.new-oracle]
 default-features = false

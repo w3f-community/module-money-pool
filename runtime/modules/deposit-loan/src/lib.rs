@@ -3,8 +3,6 @@
 // let current_price = <new_oracle::Module<T>>::current_price(&token);
 // let price: u64 = TryInto::<u64>::try_into(current_price).unwrap_or(0);
 
-// TODO: 检查一遍make_transfer_with_events
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[allow(unused_imports)]
@@ -41,20 +39,15 @@ use frame_system::{self as system, ensure_root, ensure_signed};
 mod mock;
 mod tests;
 
-const DAY_IN_MILLI: u32 = 86400_000;
-const RESERVED_MINT_RATIO: u32 = 6500;
-const RESERVED_MINT_DIV: u32 = 10000;
+const SEC_PER_DAY: u32 = 86400;
+const DAYS_PER_YEAR: u32 = 365;
 pub const INTEREST_RATE_PREC: u32 = 10000_0000;
 pub const LTV_PREC: u32 = 10000;
 pub const PRICE_PREC: u32 = 10000;
 
-/// should be 86400 seconds, a.k.a one day
-pub const TERMS_UNIT: u32 = 86400;
-
 pub type PriceInUSDT = u64;
-pub type LoanPackageId = u64;
 pub type LoanId = u64;
-pub type CreditLineId = u64;
+// pub type CreditLineId = u64;
 pub type LTV = u64;
 pub type LoanResult<T = ()> = result::Result<T, DispatchError>;
 
@@ -115,7 +108,6 @@ where
 }
 
 pub trait Trait:
-    // frame_system::Trait + sudo::Trait + timestamp::Trait + generic_asset::Trait + new_oracle::Trait
     frame_system::Trait + timestamp::Trait + generic_asset::Trait + new_oracle::Trait
 {
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
@@ -136,33 +128,21 @@ decl_storage! {
             config.collection_account_id.clone()
         }) : T::AccountId;
 
-        /// the asset that is sent to user when he is creating a saving
-        DtokenAssetId get(dtoken_asset_id) config() : T::AssetId;
-
         /// User will get dtoken when make saving
         /// This will be used to calculate the amount when redeem.
-        AccountDtokens get(account_dtokens) : linked_map hasher(blake2_256) T::AccountId => T::Balance;
+        pub UserDtoken get(user_dtoken) : linked_map hasher(blake2_256) T::AccountId => T::Balance;
 
-        /// market total dtoken Account id:
-        MarketDtokenAccountId get(market_dtoken_account_id) build(|config: &GenesisConfig<T>| {
-            config.market_dtoken_account_id.clone()
-        }) : T::AccountId;
+        // Total market dtoken generated
+        pub MarketDtoken get(market_dtoken) config(): T::Balance;
 
-        /// total dtoken amount
-        TotalDtokenAccountId get(total_dtoken_account_id) build(|config: &GenesisConfig<T>| {
-            config.total_dtoken_account_id.clone()
-        }) : T::AccountId;
-
-        /// market total dtoken id
-        MarketDtokenAssetId get(market_dtoken_asset_id) config() : T::AssetId;
-
-        /// total dtoken asset id
-        TotalDtokenAssetId get(total_dtoken_asset_id) config(): T::AssetId;
+        // Total dtoken amount
+        pub TotalDtoken get(total_dtoken) config(): T::Balance;
 
         /// time of last distribution of interest
         BonusTime get(bonus_time) : T::Moment;
 
-        LoanInterestRateCurrent get(loan_interest_rate_current) config(): T::Balance;
+        /// Annualized interest rate of loan
+        pub LoanInterestRateCurrent get(loan_interest_rate_current) config(): T::Balance;
 
         /// use "ProfitAsset" for bonus
         ProfitAssetId get(profit_asset_id) config() : T::AssetId;
@@ -198,14 +178,11 @@ decl_storage! {
         /// loan id aggregated by account
         pub LoansByAccount get(loans_by_account) : map hasher(blake2_256) T::AccountId => Vec<LoanId>;
 
-        // current btc price coming from Price
-        // CurrentBTCPrice get(current_btc_price) config() : PriceInUSDT;
-
         /// total balance of loan asset in circulation
-        TotalLoan get(total_loan) : T::Balance;
+        pub TotalLoan get(total_loan) : T::Balance;
 
         /// total balance of collateral asset locked in the pawnshop
-        TotalCollateral get(total_collateral) : T::Balance;
+        pub TotalCollateral get(total_collateral) : T::Balance;
 
         /// when a loan is overdue, a small portion of its collateral will be cut as penalty
         pub PenaltyRate get(penalty_rate) config() : u32;
@@ -223,12 +200,12 @@ decl_storage! {
         pub MinimumCollateral get(minimum_collateral) config() : T::Balance;
 
         pub LiquidationPenalty get(liquidation_penalty) config() : u32;
+
+        pub SavingInterestRate get(saving_interest_rate) config() : T::Balance;
     }
 
     add_extra_genesis {
         config(collection_account_id): T::AccountId;
-        config(market_dtoken_account_id): T::AccountId;
-        config(total_dtoken_account_id): T::AccountId;
     }
 }
 
@@ -243,27 +220,21 @@ decl_module! {
             }
         }
 
-        fn on_finalize(_height: T::BlockNumber) {
-            if !Self::paused() {
-
-            }
-        }
-
-        #[weight = SimpleDispatchInfo::MaxNormal]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn pause(origin) -> DispatchResult {
             ensure_root(origin)?;
             Paused::mutate(|v| *v = true);
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::MaxNormal]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn resume(origin) -> DispatchResult {
             ensure_root(origin)?;
             Paused::mutate(|v| *v = false);
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::MaxOperational]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_collection_asset_id(origin, asset_id: T::AssetId) -> DispatchResult {
             ensure_root(origin)?;
             ensure!(<generic_asset::Module<T>>::asset_id_exists(asset_id), "invalid collection asset id");
@@ -271,77 +242,49 @@ decl_module! {
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::MaxOperational]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_collection_account(origin, account_id: T::AccountId) -> DispatchResult {
             ensure_root(origin)?;
             <CollectionAccountId<T>>::put(account_id.clone());
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::MaxOperational]
-        pub fn set_dtoken_asset_id(origin, asset_id: T::AssetId) -> DispatchResult {
-            ensure_root(origin)?;
-            <DtokenAssetId<T>>::put(asset_id.clone());
-            Ok(())
-        }
-
-        #[weight = SimpleDispatchInfo::MaxOperational]
-        pub fn set_market_dtoken_account_id(origin, account_id: T::AccountId) -> DispatchResult {
-            ensure_root(origin)?;
-            <MarketDtokenAccountId<T>>::put(account_id.clone());
-            Ok(())
-        }
-
-        pub fn set_total_dtoken_account_id(origin, account_id: T::AccountId) -> DispatchResult {
-            ensure_root(origin)?;
-            <TotalDtokenAccountId<T>>::put(account_id.clone());
-            Ok(())
-        }
-
-        pub fn set_market_dtoken_asset_id(origin, asset_id: T::AssetId) -> DispatchResult {
-            ensure_root(origin)?;
-            ensure!(<generic_asset::Module<T>>::asset_id_exists(asset_id), "invalid asset id for market dtoken asset");
-            <MarketDtokenAssetId<T>>::put(asset_id);
-            Ok(())
-        }
-
-        pub fn set_total_dtoken_asset_id(origin, asset_id: T::AssetId) -> DispatchResult {
-            ensure_root(origin)?;
-            ensure!(<generic_asset::Module<T>>::asset_id_exists(asset_id), "invalid asset id for total dtoken asset");
-            <TotalDtokenAssetId<T>>::put(asset_id);
-            Ok(())
-        }
-
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_collateral_asset_id(origin, asset_id: T::AssetId) -> LoanResult {
             ensure_root(origin)?;
             <CollateralAssetId<T>>::put(asset_id);
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_global_ltv_limit(origin, limit: LTV) -> LoanResult {
             ensure_root(origin)?;
             GlobalLTVLimit::put(limit);
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_loan_asset_id(origin, asset_id: T::AssetId) -> LoanResult {
             ensure_root(origin)?;
             <LoanAssetId<T>>::put(asset_id);
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_global_liquidation_threshold(origin, threshold: LTV) -> LoanResult {
             ensure_root(origin)?;
             GlobalWarningThreshold::put(threshold);
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_global_warning_threshold(origin, threshold: LTV) -> LoanResult {
             ensure_root(origin)?;
             GlobalLiquidationThreshold::put(threshold);
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_loan_cap(origin, balance: T::Balance) -> LoanResult {
             ensure_root(origin)?;
             if balance.is_zero() {
@@ -352,13 +295,14 @@ decl_module! {
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_liquidation_account(origin, account_id: T::AccountId) -> LoanResult {
             ensure_root(origin)?;
             <LiquidationAccount<T>>::put(account_id);
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::MaxOperational]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_profit_asset_id(origin, asset_id: T::AssetId) -> DispatchResult {
             ensure_root(origin)?;
             ensure!(<generic_asset::Module<T>>::asset_id_exists(asset_id), "invalid collection asset id");
@@ -366,43 +310,34 @@ decl_module! {
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::MaxOperational]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_profit_pool(origin, account_id: T::AccountId) -> DispatchResult {
             ensure_root(origin)?;
             <ProfitPool<T>>::put(account_id);
             Ok(())
         }
 
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn set_penalty_rate(origin, rate: u32) -> LoanResult {
             ensure_root(origin)?;
             PenaltyRate::put(rate);
             Ok(())
         }
 
-        // a backdoor to manually set BTC price
-        // #[weight = SimpleDispatchInfo::MaxOperational]
-        // pub fn set_price(origin, price: PriceInUSDT) -> LoanResult {
-        //     ensure_root(origin)?;
-        //     CurrentBTCPrice::put(price);
-        //     Ok(())
-        // }
-
-        #[weight = SimpleDispatchInfo::FixedNormal((0))]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn staking(origin, asset_id: T::AssetId, amount: T::Balance) -> DispatchResult {
             ensure!(!Self::paused(), "module is paused");
             let who = ensure_signed(origin)?;
-            let collection_account_id = Self::collection_account_id();
             ensure!(<CollectionAssetId<T>>::get() == asset_id, "can't collect this asset");
             ensure!(<generic_asset::Module<T>>::free_balance(&asset_id, &who) >= amount, "insufficient balance");
             Self::create_staking(who.clone(), asset_id, amount)?;
             Ok(())
         }
 
-        #[weight = SimpleDispatchInfo::FixedNormal((0))]
+        #[weight = SimpleDispatchInfo::FixedNormal(0)]
         pub fn sudo_staking(origin, asset_id: T::AssetId, amount: T::Balance, delegatee: T::AccountId) -> DispatchResult {
             ensure!(!Self::paused(), "module is paused");
             ensure_root(origin)?;
-            let collection_account_id = Self::collection_account_id();
             ensure!(<CollectionAssetId<T>>::get() == asset_id, "can't collect this asset");
             ensure!(<generic_asset::Module<T>>::free_balance(&asset_id, &delegatee) >= amount, "insufficient balance");
             Self::create_staking(delegatee.clone(), asset_id, amount)?;
@@ -415,8 +350,9 @@ decl_module! {
             let who = ensure_signed(origin)?;
             let collection_asset_id = Self::collection_asset_id();
             let collection_account_id = Self::collection_account_id();
-            ensure!(!collection_asset_id.is_zero(), "fail to find collection asset id");
+            // ensure!(!collection_asset_id.is_zero(), "fail to find collection asset id");
             ensure!(<generic_asset::Module<T>>::free_balance(&collection_asset_id, &collection_account_id) >= iou_asset_amount, "Not enough to redeem");
+            ensure!(collection_asset_id == iou_asset_id, "collection asset id different from iou asset id");
 
             Self::make_redeem(
                 &who,
@@ -433,8 +369,9 @@ decl_module! {
             ensure_root(origin)?;
             let collection_asset_id = Self::collection_asset_id();
             let collection_account_id = Self::collection_account_id();
-            ensure!(!collection_asset_id.is_zero(), "fail to find collection asset id");
+            // ensure!(!collection_asset_id.is_zero(), "fail to find collection asset id");
             ensure!(<generic_asset::Module<T>>::free_balance(&collection_asset_id, &collection_account_id) >= iou_asset_amount, "Not enough to redeem");
+            ensure!(collection_asset_id == iou_asset_id, "collection asset id different from iou asset id");
 
             Self::make_redeem(
                 &delegatee,
@@ -446,26 +383,25 @@ decl_module! {
         }
 
         /// a user can apply for a loan choosing one active loan package, providing the collateral and loan amount he wants,
-        #[weight = SimpleDispatchInfo::FixedNormal(1000_000)]
-        pub fn apply(origin, collateral_amount: T::Balance, loan_amount: T::Balance, package_id: LoanPackageId) -> LoanResult {
+        #[weight = SimpleDispatchInfo::FixedNormal(10)]
+        pub fn apply_loan(origin, collateral_amount: T::Balance, loan_amount: T::Balance) -> LoanResult {
             ensure!(!Self::paused(), "module is paused");
             let who = ensure_signed(origin)?;
-            // Self::apply_for_loan(ensure_signed(origin)?, package_id, collateral_amount, loan_amount)
             Self::apply_for_loan(who.clone(), collateral_amount, loan_amount)
         }
 
         /// a user repay a loan he has made before, by providing the loan id and he should make sure there is enough related assets in his account
-        #[weight = SimpleDispatchInfo::FixedNormal(1000_000)]
-        pub fn repay(origin, loan_id: LoanId) -> LoanResult {
+        #[weight = SimpleDispatchInfo::FixedNormal(10)]
+        pub fn repay_loan(origin, loan_id: LoanId) -> LoanResult {
             ensure!(!Self::paused(), "module is paused");
             let who = ensure_signed(origin)?;
-            Self::repay_loan(who.clone(), loan_id)
+            Self::repay_for_loan(who.clone(), loan_id)
         }
 
         /// when a liquidating loan has been handled well, platform mananger should call "mark_liquidated" to update the chain
         /// loan id is the loan been handled and auction_balance is what the liquidation got by selling the collateral asset
         /// auction_balance will be first used to make up the loan, then what so ever left will be returned to the loan's owner account
-        #[weight = SimpleDispatchInfo::MaxOperational]
+        #[weight = SimpleDispatchInfo::FixedNormal(10)]
         pub fn mark_liquidated(origin, loan_id: LoanId, auction_balance: T::Balance) -> DispatchResult {
             ensure!(!Self::paused(), "module is paused");
             let liquidation_account = ensure_signed(origin)?;
@@ -476,7 +412,7 @@ decl_module! {
         }
 
         /// when user got a warning of high-risk LTV, user can lower the LTV by add more collateral
-        #[weight = SimpleDispatchInfo::FixedNormal(1000_000)]
+        #[weight = SimpleDispatchInfo::FixedNormal(10)]
         pub fn add_collateral(origin, loan_id: LoanId, amount: T::Balance) -> DispatchResult {
             ensure!(!Self::paused(), "module is paused");
             let who = ensure_signed(origin)?;
@@ -488,7 +424,7 @@ decl_module! {
         }
 
         /// as long as the LTV of this loan is below the "GlobalLTVLimit", user can keep drawing TBD from this loan
-        #[weight = SimpleDispatchInfo::FixedNormal(1000_000)]
+        #[weight = SimpleDispatchInfo::FixedNormal(10)]
         pub fn draw(origin, loan_id: LoanId, amount: T::Balance) -> DispatchResult {
             ensure!(!Self::paused(), "module is paused");
             let who = ensure_signed(origin)?;
@@ -498,23 +434,16 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-    pub fn create_staking(who: T::AccountId, asset_id: T::AssetId, balance: T::Balance) -> DispatchResult {
+    pub fn create_staking(
+        who: T::AccountId,
+        asset_id: T::AssetId,
+        balance: T::Balance,
+    ) -> DispatchResult {
         ensure!(!balance.is_zero(), "saving can't be zero");
 
-        let market_dtoken_account_id = Self::market_dtoken_account_id();
-        let market_dtoken_asset_id = Self::market_dtoken_asset_id();
-        let total_dtoken_account_id = Self::total_dtoken_account_id();
-        let total_dtoken_asset_id = Self::total_dtoken_asset_id();
+        let market_dtoken_amount = Self::market_dtoken();
+        let total_dtoken_amount = Self::total_dtoken();
         let collection_account_id = Self::collection_account_id();
-
-        let market_dtoken_amount = <generic_asset::Module<T>>::free_balance(
-            &market_dtoken_asset_id,
-            &market_dtoken_account_id,
-        );
-        let total_dtoken_amount = <generic_asset::Module<T>>::free_balance(
-            &total_dtoken_asset_id,
-            &total_dtoken_account_id,
-        );
 
         let mut user_dtoken = T::Balance::from(0);
 
@@ -535,27 +464,19 @@ impl<T: Trait> Module<T> {
                 / total_dtoken_amount;
         }
 
-        if <AccountDtokens<T>>::contains_key(who.clone()) {
-            <AccountDtokens<T>>::mutate(who.clone(), |v| {
+        if <UserDtoken<T>>::contains_key(who.clone()) {
+            <UserDtoken<T>>::mutate(who.clone(), |v| {
                 *v = v.checked_add(&user_dtoken).expect("overflow");
             });
         } else {
-            <AccountDtokens<T>>::insert(&who, user_dtoken);
+            <UserDtoken<T>>::insert(&who, user_dtoken);
         }
 
-        <generic_asset::Module<T>>::mint_free(
-            &market_dtoken_asset_id,
-            &<sudo::Module<T>>::key(),
-            &market_dtoken_account_id,
-            &user_dtoken,
-        )?;
+        let market_dtoken = market_dtoken_amount.checked_add(&user_dtoken).unwrap();
+        let total_dtoken = market_dtoken_amount.checked_add(&balance).unwrap();
 
-        <generic_asset::Module<T>>::mint_free(
-            &total_dtoken_asset_id,
-            &<sudo::Module<T>>::key(),
-            &total_dtoken_account_id,
-            &balance,
-        )?;
+        <MarketDtoken<T>>::put(market_dtoken);
+        <TotalDtoken<T>>::put(total_dtoken);
 
         Ok(())
     }
@@ -566,51 +487,26 @@ impl<T: Trait> Module<T> {
         collection_account_id: &T::AccountId,
         amount: T::Balance,
     ) -> DispatchResult {
-        let market_dtoken_account_id = Self::market_dtoken_account_id();
-        let market_dtoken_asset_id = Self::market_dtoken_asset_id();
-        let total_dtoken_account_id = Self::total_dtoken_account_id();
-        let total_dtoken_asset_id = Self::total_dtoken_asset_id();
+        let market_dtoken_amount = Self::market_dtoken();
+        let total_dtoken_amount = Self::total_dtoken();
 
-        let collection_asset_id = Self::collection_asset_id();
-        let collection_account_id = Self::collection_account_id();
-
-        let market_dtoken_amount = <generic_asset::Module<T>>::free_balance(
-            &market_dtoken_asset_id,
-            &market_dtoken_account_id,
-        );
-        let total_dtoken_amount = <generic_asset::Module<T>>::free_balance(
-            &total_dtoken_asset_id,
-            &total_dtoken_account_id,
-        );
-
-        let user_dtoken_amount = Self::account_dtokens(&who);
+        let user_dtoken_amount = Self::user_dtoken(&who);
         let user_will_get = user_dtoken_amount / (market_dtoken_amount / total_dtoken_amount);
 
         ensure!(user_will_get >= amount, "redeem too much assets!");
-        Self::make_redeem_all(&who);
-        Self::create_staking(who.clone(), collection_asset_id, user_will_get - amount).unwrap_or_default();
+        Self::make_redeem_all(&who).unwrap_or_default();
+        Self::create_staking(who.clone(), *collection_asset_id, user_will_get - amount)
+            .unwrap_or_default();
         Ok(())
     }
 
     fn make_redeem_all(who: &T::AccountId) -> DispatchResult {
-        let market_dtoken_account_id = Self::market_dtoken_account_id();
-        let market_dtoken_asset_id = Self::market_dtoken_asset_id();
-        let total_dtoken_account_id = Self::total_dtoken_account_id();
-        let total_dtoken_asset_id = Self::total_dtoken_asset_id();
-
+        let market_dtoken_amount = Self::market_dtoken();
+        let total_dtoken_amount = Self::total_dtoken();
         let collection_asset_id = Self::collection_asset_id();
         let collection_account_id = Self::collection_account_id();
 
-        let market_dtoken_amount = <generic_asset::Module<T>>::free_balance(
-            &market_dtoken_asset_id,
-            &market_dtoken_account_id,
-        );
-        let total_dtoken_amount = <generic_asset::Module<T>>::free_balance(
-            &total_dtoken_asset_id,
-            &total_dtoken_account_id,
-        );
-
-        let user_dtoken_amount = Self::account_dtokens(&who);
+        let user_dtoken_amount = Self::user_dtoken(&who);
 
         let user_will_get = user_dtoken_amount / (market_dtoken_amount / total_dtoken_amount);
 
@@ -619,34 +515,21 @@ impl<T: Trait> Module<T> {
                 >= user_will_get,
             "saving balance is short"
         );
+
         ensure!(
-            <generic_asset::Module<T>>::free_balance(
-                &total_dtoken_asset_id,
-                &total_dtoken_account_id
-            ) >= user_will_get,
+            Self::total_dtoken() >= user_dtoken_amount,
             "total dtoken is short"
         );
         ensure!(
-            <generic_asset::Module<T>>::free_balance(
-                &market_dtoken_asset_id,
-                &market_dtoken_account_id
-            ) >= user_dtoken_amount,
+            Self::market_dtoken() >= user_dtoken_amount,
             "market dtoken is short"
         );
 
-        <generic_asset::Module<T>>::burn_free(
-            &total_dtoken_asset_id.clone(),
-            &<sudo::Module<T>>::key(),
-            &total_dtoken_account_id.clone(),
-            &user_will_get,
-        )?;
+        let total_dtoken = Self::total_dtoken() - user_will_get;
+        let market_dtoken = Self::market_dtoken() - user_dtoken_amount;
 
-        <generic_asset::Module<T>>::burn_free(
-            &market_dtoken_asset_id.clone(),
-            &<sudo::Module<T>>::key(),
-            &market_dtoken_account_id.clone(),
-            &user_dtoken_amount,
-        )?;
+        <MarketDtoken<T>>::put(market_dtoken);
+        <TotalDtoken<T>>::put(total_dtoken);
 
         <generic_asset::Module<T>>::make_transfer_with_event(
             &collection_asset_id,
@@ -667,7 +550,7 @@ impl<T: Trait> Module<T> {
         ensure!(
             <generic_asset::Module<T>>::free_balance(&collection_asset_id, &collection_account_id)
                 >= loan_amount,
-            "Not enough to redeem"
+            "Not enough to loan"
         );
 
         let collateral_asset_id = Self::collateral_asset_id();
@@ -697,6 +580,7 @@ impl<T: Trait> Module<T> {
                     "not reach min collateral amount"
                 );
 
+                // transfer collateral to pawnshop
                 <generic_asset::Module<T>>::make_transfer_with_event(
                     &collateral_asset_id,
                     &who,
@@ -707,7 +591,7 @@ impl<T: Trait> Module<T> {
                 let loan_id = Self::get_next_loan_id();
 
                 let collateral_balance_available = actual_collateral_amount
-                    - loan_amount * T::Balance::from(LTV_PREC) * T::Balance::from(PRICE_PREC)
+                    - loan_amount
                         / <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
                             .ok()
                             .unwrap();
@@ -748,21 +632,20 @@ impl<T: Trait> Module<T> {
         if collateral_amount.is_zero() && loan_amount.is_zero() {
             return Err(Error::<T>::InvalidCollateralLoanAmounts)?;
         }
-
-        // TODO: In fact btc_price is the Conversion ratio of collateral asset and loan asset
-        // Ensure generic_asset exist collateral symbols
         let collateral_asset_id = Self::collateral_asset_id();
+
+        // get current btc price
         let token = <generic_asset::Module<T>>::symbols(collateral_asset_id);
         let current_price = <new_oracle::Module<T>>::current_price(&token);
         let btc_price: u64 = TryInto::<u64>::try_into(current_price).unwrap_or(0);
-
-        let ltv = GlobalLTVLimit::get();
         let btc_price_in_balance = <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
             .ok()
             .unwrap();
 
         let price_prec_in_balance = T::Balance::from(PRICE_PREC);
         let ltv_prec_in_balance = T::Balance::from(LTV_PREC);
+
+        let ltv = GlobalLTVLimit::get();
         let ltv_in_balance = <T::Balance as TryFrom<u64>>::try_from(ltv).ok().unwrap();
 
         if collateral_amount.is_zero() {
@@ -784,9 +667,8 @@ impl<T: Trait> Module<T> {
         }
 
         if (loan_amount * ltv_prec_in_balance) * price_prec_in_balance
-            / collateral_amount
-            / btc_price_in_balance
-            > ltv_in_balance
+            / (collateral_amount * btc_price_in_balance)
+            >= ltv_in_balance
         {
             Err(Error::<T>::OverLTVLimit)?
         } else {
@@ -797,12 +679,12 @@ impl<T: Trait> Module<T> {
         }
     }
 
-    pub fn repay_loan(who: T::AccountId, loan_id: LoanId) -> DispatchResult {
+    pub fn repay_for_loan(who: T::AccountId, loan_id: LoanId) -> DispatchResult {
         let loan_asset_id = Self::loan_asset_id();
         let collateral_asset_id = Self::collateral_asset_id();
         let collection_account_id = Self::collection_account_id();
-
         let pawn_shop = Self::pawn_shop();
+
         ensure!(<Loans<T>>::contains_key(loan_id), "invalid loan id");
         let loan = <Loans<T>>::get(loan_id);
         ensure!(loan.who == who, "not owner of the loan");
@@ -822,8 +704,6 @@ impl<T: Trait> Module<T> {
             "loan is in liquidation"
         );
 
-        <Loans<T>>::remove(&loan.id);
-
         <LoansByAccount<T>>::mutate(&who, |v| {
             *v = v
                 .clone()
@@ -831,8 +711,6 @@ impl<T: Trait> Module<T> {
                 .filter(|ele| *ele != loan_id)
                 .collect::<Vec<LoanId>>();
         });
-        <TotalLoan<T>>::mutate(|v| *v -= loan.loan_balance_total);
-        <TotalCollateral<T>>::mutate(|v| *v -= loan.collateral_balance_available);
 
         let revert_callback = || {
             <Loans<T>>::insert(&loan.id, &loan);
@@ -857,7 +735,7 @@ impl<T: Trait> Module<T> {
             &collateral_asset_id,
             &pawn_shop,
             &who,
-            loan.collateral_balance_available,
+            loan.collateral_balance_original,
         )
         .or_else(|err| -> DispatchResult {
             revert_callback();
@@ -869,6 +747,11 @@ impl<T: Trait> Module<T> {
             )?;
             Err(err)
         })?;
+
+        <Loans<T>>::remove(&loan.id);
+        <TotalLoan<T>>::mutate(|v| *v -= loan.loan_balance_total);
+        // <TotalCollateral<T>>::mutate(|v| *v -= loan.collateral_balance_available);
+        <TotalCollateral<T>>::mutate(|v| *v -= loan.collateral_balance_original);
 
         Self::deposit_event(RawEvent::LoanRepaid(
             loan_id,
@@ -887,41 +770,46 @@ impl<T: Trait> Module<T> {
         liquidation_account: T::AccountId,
         auction_balance: T::Balance,
     ) -> DispatchResult {
+
         ensure!(
             Self::check_loan_in_liquidation(&loan.id),
             "loan id not in liquidating"
         );
 
         let pawnshop = Self::pawn_shop();
-
+        let collateral_asset_id = Self::collateral_asset_id();
         let collection_asset_id = Self::collection_asset_id();
         let collection_account_id = Self::collection_account_id();
-        let collateral_asset_id = Self::collateral_asset_id();
-
         let loan_asset_id = Self::loan_asset_id();
+
         ensure!(
             <generic_asset::Module<T>>::free_balance(&loan_asset_id, &liquidation_account)
                 >= auction_balance,
             "not enough asset to liquidate"
         );
 
-        // TODO: liquidation_account will have a cut off to make liquidation
+        ensure!(
+            auction_balance >= loan.loan_balance_total, "Not enough for loan liquidate"
+        );
+
         <generic_asset::Module<T>>::make_transfer_with_event(
             &loan_asset_id,
             &liquidation_account,
             &collection_account_id,
             loan.loan_balance_total,
         )?;
+
         let leftover = auction_balance.checked_sub(&loan.loan_balance_total);
+
         if leftover.is_some() && leftover.unwrap() > T::Balance::zero() {
             let penalty_rate = Self::liquidation_penalty();
             let penalty =
-                leftover.unwrap() * T::Balance::from(penalty_rate) / T::Balance::from(LTV_PREC);
-            // TODO: part of the penalty can send to team account.
-            <generic_asset::Module<T>>::make_transfer_with_event(
+                leftover.unwrap() * T::Balance::from(penalty_rate) / 100.into();
+
+                <generic_asset::Module<T>>::make_transfer_with_event(
                 &loan_asset_id,
-                &liquidation_account,
-                &Self::profit_pool(),
+                &collection_account_id,
+                &Self::profit_pool(),   // TODO: can change to team account
                 penalty,
             )
             .or_else(|err| -> DispatchResult {
@@ -936,7 +824,7 @@ impl<T: Trait> Module<T> {
             // part of the penalty will transfer to the loan owner
             <generic_asset::Module<T>>::make_transfer_with_event(
                 &loan_asset_id,
-                &liquidation_account,
+                &collection_account_id,
                 &loan.who,
                 leftover.unwrap() - penalty,
             )
@@ -990,7 +878,6 @@ impl<T: Trait> Module<T> {
         amount: T::Balance,
     ) -> DispatchResult {
         let pawnshop = Self::pawn_shop();
-
         let collateral_asset_id = Self::collection_asset_id();
 
         ensure!(
@@ -999,7 +886,6 @@ impl<T: Trait> Module<T> {
         );
 
         <generic_asset::Module<T>>::make_transfer_with_event(
-            // &package.collateral_asset_id,
             &collateral_asset_id,
             &from,
             &pawnshop,
@@ -1022,7 +908,6 @@ impl<T: Trait> Module<T> {
 
     fn check_loan_health(
         loan: &Loan<T::AccountId, T::Balance>,
-        now: T::Moment,
         btc_price: u64,
         liquidation: LTV,
         warning: LTV,
@@ -1055,6 +940,7 @@ impl<T: Trait> Module<T> {
             LiquidatingLoans::put(ll);
         }
     }
+
     pub fn draw_from_loan(
         who: T::AccountId,
         loan_id: LoanId,
@@ -1071,27 +957,20 @@ impl<T: Trait> Module<T> {
 
         let global_ltv = Self::global_ltv_limit();
         let available_credit = loan.collateral_balance_available
-            * <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
-                .ok()
-                .unwrap()
-            * <T::Balance as TryFrom<u64>>::try_from(global_ltv)
-                .ok()
-                .unwrap()
+            * T::Balance::from(btc_price as u32)
+            * T::Balance::from(global_ltv as u32)
             / T::Balance::from(LTV_PREC)
             / T::Balance::from(PRICE_PREC);
-        // - loan.loan_balance_total;
+
         ensure!(amount <= available_credit, "short of available credit");
 
         <Loans<T>>::mutate(loan_id, |v| {
-            v.loan_balance_total += amount;
+            v.loan_balance_total = v.loan_balance_total + amount;
         });
 
         <Loans<T>>::mutate(loan_id, |v| {
-            v.collateral_balance_available -=
-                amount * T::Balance::from(LTV_PREC) * T::Balance::from(PRICE_PREC)
-                    / <T::Balance as TryFrom<u128>>::try_from(btc_price as u128)
-                        .ok()
-                        .unwrap();
+            v.collateral_balance_available =
+                v.collateral_balance_available - amount / T::Balance::from(btc_price as u32);
         });
 
         <TotalLoan<T>>::mutate(|v| *v += amount);
@@ -1113,31 +992,20 @@ impl<T: Trait> Module<T> {
     }
 
     fn on_each_block(_height: T::BlockNumber) {
-        let now = <timestamp::Module<T>>::get();
-
         let collateral_asset_id = Self::collateral_asset_id();
+        let liquidation_thd = Self::global_liquidation_threshold();
+        let warning_thd = Self::global_warning_threshold();
+
         let token = <generic_asset::Module<T>>::symbols(collateral_asset_id);
         let current_price = <new_oracle::Module<T>>::current_price(&token);
         let btc_price: u64 = TryInto::<u64>::try_into(current_price).unwrap_or(0);
-
-        // let btc_price = Self::current_btc_price();
-
-        let liquidation_thd = Self::global_liquidation_threshold();
-        let warning_thd = Self::global_warning_threshold();
-        // let mut package
-        // let mut total_penalty = T::Balance::zero();
-        let mut total_interest = T::Balance::zero();
-
-        let collateral_asset_id = Self::collateral_asset_id();
-        let pawnshop = Self::pawn_shop();
-        let profit_pool = Self::profit_pool();
 
         for (loan_id, loan) in <Loans<T>>::enumerate() {
             if Self::check_loan_in_liquidation(&loan_id) {
                 continue;
             }
 
-            match Self::check_loan_health(&loan, now, btc_price, liquidation_thd, warning_thd) {
+            match Self::check_loan_health(&loan, btc_price, liquidation_thd, warning_thd) {
                 LoanHealth::Well => {}
                 LoanHealth::Warning(ltv) => {
                     if loan.status != LoanHealth::Warning(ltv) {
@@ -1160,16 +1028,18 @@ impl<T: Trait> Module<T> {
     }
 
     fn calculate_loan_interest_rate() {
-        let total_loan = Self::total_loan();
         let collection_asset_id = Self::collection_asset_id();
         let collection_account_id = Self::collection_account_id();
+        let total_loan = Self::total_loan();
+        let total_loan = TryInto::<u128>::try_into(total_loan).ok().unwrap();
+
         let total_deposit =
             <generic_asset::Module<T>>::free_balance(&collection_asset_id, &collection_account_id)
                 + Self::total_loan();
-        let current_time = <timestamp::Module<T>>::get();
-
-        let total_loan = TryInto::<u128>::try_into(total_loan).ok().unwrap();
         let total_deposit = TryInto::<u128>::try_into(total_deposit).ok().unwrap();
+
+        let current_time = <timestamp::Module<T>>::get();
+        <BonusTime<T>>::put(current_time);
 
         if !(total_deposit + total_loan).is_zero() {
             let utilization_rate_x = total_loan
@@ -1177,16 +1047,16 @@ impl<T: Trait> Module<T> {
                 .expect("saving share overflow")
                 / (total_deposit + total_loan);
 
+            // This is the real interest rate * 10^8
             let loan_interest_rate_current = if utilization_rate_x < 4000_00000 {
-                (1.checked_mul(&utilization_rate_x).expect("overflow") + 4) / 10
+                (utilization_rate_x + 5000_0000) / 10
             } else if utilization_rate_x >= 8000_0000 {
-                (30.checked_mul(&utilization_rate_x.pow(6))
-                    .expect("overflow")
-                    + 10 * utilization_rate_x.pow(3)
-                    + 6)
+                (30 * utilization_rate_x.pow(6)
+                    + 10 * utilization_rate_x.pow(3) * 10_u128.pow(24)
+                    + 6 * 10_u128.pow(48))
                     / 10_u128.pow(42)
             } else {
-                20.checked_mul(&utilization_rate_x).expect("overflow") + 1
+                (20 * utilization_rate_x * 10_u128.pow(8)) / 10_u128.pow(2)
             };
 
             let loan_interest_rate_current: T::Balance =
@@ -1201,34 +1071,43 @@ impl<T: Trait> Module<T> {
                 .unwrap();
             let total_loan: T::Balance = TryFrom::<u128>::try_from(total_loan).ok().unwrap();
 
-            let interest_generated =
-                T::Balance::from(time_duration) * total_loan * loan_interest_rate_current;
+            let interest_generated = T::Balance::from(time_duration)
+                * total_loan
+                * loan_interest_rate_current
+                / T::Balance::from(SEC_PER_DAY)
+                / T::Balance::from(DAYS_PER_YEAR);
 
             let profit_pool = Self::profit_pool();
             let profit_asset = Self::profit_asset_id();
-            let total_profit =
-                <generic_asset::Module<T>>::free_balance(&profit_asset, &profit_pool);
 
             for (loan_id, loan) in <Loans<T>>::enumerate() {
-                Self::draw_from_loan(
-                    loan.who.clone(),
-                    loan_id,
-                    interest_generated * loan.loan_balance_total / total_loan,
+                let amount = interest_generated * loan.loan_balance_total
+                    / (total_loan * T::Balance::from(10_u32.pow(8)));
+
+                Self::draw_from_loan(loan.who.clone(), loan_id, amount).unwrap_or_default();
+
+                <generic_asset::Module<T>>::make_transfer_with_event(
+                    &collection_asset_id,
+                    &loan.who,
+                    &collection_account_id,
+                    amount,
                 )
                 .unwrap_or_default();
 
-                <generic_asset::Module<T>>::make_transfer_with_event(
-                    &profit_asset,
-                    &loan.who,
-                    &profit_pool,
-                    interest_generated * loan.loan_balance_total / total_loan,
-                )
-                .unwrap_or_default();
+                <TotalDtoken<T>>::mutate(|v| {
+                    *v = v.checked_add(&amount).expect("Overflow of market dtoken");
+                });
             }
 
             <LoanInterestRateCurrent<T>>::put(loan_interest_rate_current);
+            let current_interest_rate = interest_generated
+                / T::Balance::from(total_deposit as u32)
+                * T::Balance::from(DAYS_PER_YEAR)
+                * T::Balance::from(SEC_PER_DAY)
+                * T::Balance::from(10_u32.pow(8));
+
+            <SavingInterestRate<T>>::put(current_interest_rate);
         }
-        <BonusTime<T>>::put(current_time);
     }
 
     fn get_next_loan_id() -> LoanId {
@@ -1264,13 +1143,11 @@ decl_event!(
         BlockNumber = <T as frame_system::Trait>::BlockNumber,
         ExtrinsicIndex = u32,
     {
-        PackageCreated(LoanPackageId),
-        PackageDisabled(LoanPackageId),
         LoanCreated(Loan),
         LoanDrawn(LoanId, Balance),
         LoanRepaid(LoanId, Balance, Balance),
-        Expired(LoanId, AccountId, Balance, Balance),
-        Extended(LoanId, AccountId),
+        // Expired(LoanId, AccountId, Balance, Balance),
+        // Extended(LoanId, AccountId),
         Warning(LoanId, LTV),
         Paused(LineNumber, BlockNumber, ExtrinsicIndex),
 
