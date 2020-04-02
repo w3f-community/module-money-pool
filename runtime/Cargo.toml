@@ -389,11 +389,60 @@ std = [
     'pallet-society/std',
     'pallet-recovery/std',
     'pallet-vesting/std',
+
+    'generic-asset/std',   
+    'generic-asset-rpc-runtime-api/std',
+    'new-oracle/std',
+    # 'bridge/std',
+    "deposit-loan/std",
+    # 'ls-biding/std',
+    # 'ls-biding-rpc-runtime-api/std',
+    # 'ls-biding-primitives/std',
 ]
 [dev-dependencies.sp-io]
 git = 'https://github.com/paritytech/substrate.git'
 rev = '6ce091737dc7f114dd420f8b879f8a467c1d501b'
 version = '2.0.0-alpha.5'
+
+[dependencies.generic-asset]
+default-features = false
+path = "../pallets/generic-asset"
+
+[dependencies.generic-asset-rpc-runtime-api]
+default-features = false
+path = "../pallets/generic-asset/rpc/runtime-api"
+
+# [dependencies.bridge]
+# default-features = false
+# path = "../pallets/bridge"
+
+# [dependencies.ls-biding]
+# default-features = false
+# path = "../pallets/ls-biding"
+
+# [dependencies.ls-biding-primitives]
+# default-features = false
+# path = "../pallets/ls-biding/primitives"
+
+# [dependencies.ls-biding-rpc-runtime-api]
+# default-features = false
+# path = "../pallets/ls-biding/rpc/runtime-api"
+
+[dependencies.deposit-loan]
+default-features = false
+path = "../pallets/deposit-loan"
+
+[dependencies.deposit-loan-rpc-runtime-api]
+default-features = false
+path = "../pallets/deposit-loan/rpc/runtime-api"
+
+[dependencies.deposit-loan-primitives]
+default-features = false
+path = "../pallets/deposit-loan/primitives"
+
+[dependencies.new-oracle]
+default-features = false
+path = "../pallets/new-oracle"
 
 [package]
 authors = ['Parity Technologies <admin@parity.io>']

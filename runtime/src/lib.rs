@@ -28,7 +28,7 @@ use frame_support::{
 };
 use sp_core::u32_trait::{_1, _2, _3, _4};
 pub use node_primitives::{AccountId, Signature};
-use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
+use node_primitives::{AccountIndex, AssetId, Balance, BlockNumber, Hash, Index, Moment};
 use sp_api::impl_runtime_apis;
 use sp_runtime::{
 	Permill, Perbill, Percent, ApplyExtrinsicResult,
@@ -64,6 +64,8 @@ pub use pallet_staking::StakerStatus;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub mod impls;
 use impls::{CurrencyToVoteHandler, Author, LinearWeightToFee, TargetedFeeAdjustment};
+
+pub use new_oracle::PRICE_SCALE as ORACLE_PRICE_SCALE;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -624,6 +626,45 @@ impl pallet_vesting::Trait for Runtime {
 	type MinVestedTransfer = MinVestedTransfer;
 }
 
+impl generic_asset::Trait for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type AssetId = AssetId;
+}
+
+// impl bridge::Trait for Runtime {
+//     type Event = Event;
+// }
+
+// parameter_types! {
+//        pub const DaysInBlockNumber: BlockNumber = 1 * DAYS;
+// }
+
+// impl ls_biding::Trait for Runtime {
+//        type Event = Event;
+//        type Days = DaysInBlockNumber;
+// }
+
+type SubmitOracleTransaction =
+	TransactionSubmitter<new_oracle::crypto::Public, Runtime, UncheckedExtrinsic>;
+
+parameter_types! {
+	pub const AggregateInterval: BlockNumber = 5;
+}
+
+impl new_oracle::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type SubmitUnsignedTransaction = SubmitOracleTransaction;
+	type SubmitSignedTransaction = SubmitOracleTransaction;
+	type AggregateInterval = AggregateInterval;
+	type PriceInUSDT = u64;
+}
+
+impl deposit_loan::Trait for Runtime {
+    type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -658,6 +699,12 @@ construct_runtime!(
 		Society: pallet_society::{Module, Call, Storage, Event<T>, Config<T>},
 		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>},
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
+
+		GenericAsset: generic_asset::{Module, Call, Storage, Event<T>, Config<T>},
+		// LSBiding: ls_biding::{Module, Call, Storage, Event<T>, Config<T>},
+		// Bridge: bridge::{Module, Call, Storage, Event<T>, Config<T>},
+		NewOracle: new_oracle::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+		DepositLoan: deposit_loan::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 );
 
@@ -829,6 +876,38 @@ impl_runtime_apis! {
 			TransactionPayment::query_info(uxt, len)
 		}
 	}
+
+	impl generic_asset_rpc_runtime_api::GenericAssetApi<Block, AssetId, Balance, AccountId> for Runtime {
+        fn get_symbols_list() -> Option<Vec<(AssetId, Vec<u8>)>> {
+            GenericAsset::all_asset_symbols()
+        }
+
+        fn get_user_assets(who: AccountId) -> Option<Vec<(AssetId, Vec<u8>, Balance)>> {
+            GenericAsset::whos_all_assets(who)
+        }
+    }
+
+	// impl ls_biding_rpc_runtime_api::LSBidingApi<Block, AssetId, Balance, BlockNumber, AccountId> for Runtime {
+	// 	fn get_borrows(size: Option<u64>, offset: Option<u64>) -> Option<Vec<ls_biding_primitives::Borrow<AssetId, Balance, BlockNumber, AccountId>>> {
+	// 			LSBiding::get_borrows(size, offset)
+	// 	}
+
+	// 	fn get_loans(size: Option<u64>, offset: Option<u64>) -> Option<Vec<ls_biding_primitives::Loan<AssetId, Balance, BlockNumber, AccountId>>> {
+	// 			LSBiding::get_loans(size, offset)
+	// 	}
+	// }
+
+	impl deposit_loan_rpc_runtime_api::DepositLoanApi<Block, AccountId, Balance> for Runtime {
+		// fn get_borrows(size: Option<u64>, offset: Option<u64>) -> Option<Vec<ls_biding_primitives::Borrow<AssetId, Balance, BlockNumber, AccountId>>> {
+		// 		LSBiding::get_borrows(size, offset)
+		// }
+
+		// fn get_loans(size: Option<u64>, offset: Option<u64>) -> Option<Vec<deposit_loan_primitives::Loan<AssetId, Balance, BlockNumber, AccountId>>> {
+		fn get_loans(size: Option<u64>, offset: Option<u64>) -> Option<Vec<deposit_loan_primitives::Loan<AccountId, Balance>>> {
+			DepositLoan::get_loans(size, offset)
+		}
+	}
+
 
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {

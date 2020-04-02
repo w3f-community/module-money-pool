@@ -79,6 +79,15 @@ git = 'https://github.com/paritytech/substrate.git'
 rev = '6ce091737dc7f114dd420f8b879f8a467c1d501b'
 version = '2.0.0-alpha.5'
 
+[dependencies.generic-asset-rpc]
+path = "../pallets/generic-asset/rpc"
+
+[dependencies.deposit-loan-rpc]
+path = "../pallets/deposit-loan/rpc"
+
+# [dependencies.ls-biding-rpc]
+# path = "../pallets/ls-biding/rpc"
+
 [package]
 authors = ['Parity Technologies <admin@parity.io>']
 edition = '2018'

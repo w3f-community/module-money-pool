@@ -23,6 +23,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig, DemocracyConfig,
 	GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
 	IndicesConfig, SocietyConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, WASM_BINARY,
+	NewOracleConfig, GenericAssetConfig, DepositLoanConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -304,6 +305,69 @@ pub fn testnet_genesis(
 			max_members: 999,
 		}),
 		pallet_vesting: Some(Default::default()),
+
+		deposit_loan: Some(DepositLoanConfig {
+			collection_asset_id: 0,
+			profit_asset_id: 0,
+			loan_interest_rate_current: 0,
+			collateral_asset_id: 1,
+			loan_asset_id: 0,
+			global_ltv_limit: 6666_6667,
+			global_liquidation_threshold: 1_0000_0000,
+			global_warning_threshold: 5000_0000,
+			next_loan_id: 0,
+
+			penalty_rate: 50,
+			minimum_collateral: 0,
+			liquidation_penalty: 1300,
+			collection_account_id: get_account_id_from_seed::<sr25519::Public>("collection_account_id"),
+			liquidation_account: get_account_id_from_seed::<sr25519::Public>("liquidation_account"),
+			pawn_shop: get_account_id_from_seed::<sr25519::Public>("pawn_shop"),
+			profit_pool: get_account_id_from_seed::<sr25519::Public>("profit_pool"),
+			market_dtoken: 0,
+			total_dtoken: 0,
+			saving_interest_rate: 0,
+		}),
+
+		// bridge: Some(BridgeConfig {
+		// 	asset_id: 1,
+		// 	threshold: 30_0000_0000,
+		// 	admins: vec![(
+		// 		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		// 		node_runtime::bridge::Auth::All,
+		// 	)],
+		// 	pending_withdraw_vault: get_account_id_from_seed::<sr25519::Public>("withdraw vault"),
+		// }),
+
+		generic_asset: Some(GenericAssetConfig {
+			next_asset_id: 5,
+			assets: vec![],
+			initial_balance: 0,
+			endowed_accounts: vec![],
+			symbols: vec![
+				(0, "DUSD".as_bytes().to_vec()),
+				(1, "BTC".as_bytes().to_vec()),
+			],
+		}),
+
+		new_oracle: Some(NewOracleConfig {
+			crypto_price_sources: vec![(
+				b"BTC".to_vec(),
+				vec![
+					(
+						b"coincap".to_vec(),
+						b"https://api.coincap.io/v2/assets/bitcoin".to_vec(),
+						vec![b"data".to_vec(), b"priceUsd".to_vec()],
+					),
+					(
+						b"cryptocompare".to_vec(),
+						b"https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD".to_vec(),
+						vec![b"USD".to_vec()],
+					),
+				],
+			)],
+			current_price: vec![(b"DUSD".to_vec(), 1 * node_runtime::ORACLE_PRICE_SCALE)],
+		}),
 	}
 }
 

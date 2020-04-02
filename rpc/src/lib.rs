@@ -31,7 +31,7 @@
 
 use std::{sync::Arc, fmt};
 
-use node_primitives::{Block, BlockNumber, AccountId, Index, Balance};
+use node_primitives::{AccountId, AssetId, Block, BlockNumber, Index, Balance};
 use node_runtime::UncheckedExtrinsic;
 use sp_api::ProvideRuntimeApi;
 use sp_transaction_pool::TransactionPool;
@@ -87,12 +87,22 @@ pub fn create_full<C, P, M, SC>(
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_contracts_rpc::ContractsRuntimeApi<Block, AccountId, Balance, BlockNumber>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UncheckedExtrinsic>,
+	
+	C::Api: generic_asset_rpc::GenericAssetRuntimeApi<Block, AssetId, Balance, AccountId>,
+    // C::Api: ls_biding_rpc::LSBidingRuntimeApi<Block, AssetId, Balance, BlockNumber, AccountId>,
+	// C::Api: deposit_loan_rpc::DepositLoanRuntimeApi<Block, AssetId, Balance, AccountId>,
+	C::Api: deposit_loan_rpc::DepositLoanRuntimeApi<Block, AccountId, Balance>,
+
 	C::Api: BabeApi<Block>,
 	<C::Api as sp_api::ApiErrorExt>::Error: fmt::Debug,
 	P: TransactionPool + 'static,
 	M: jsonrpc_core::Metadata + Default,
 	SC: SelectChain<Block> +'static,
 {
+	use generic_asset_rpc::{GenericAsset, GenericAssetApi};
+	// use ls_biding_rpc::{LSBiding, LSBidingApi};
+	use deposit_loan_rpc::{DepositLoan, DepositLoanApi};
+
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_contracts_rpc::{Contracts, ContractsApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
@@ -122,6 +132,15 @@ pub fn create_full<C, P, M, SC>(
 	io.extend_with(
 		TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone()))
 	);
+	io.extend_with(GenericAssetApi::to_delegate(GenericAsset::new(
+	    client.clone(),
+	)));
+
+	io.extend_with(DepositLoanApi::to_delegate(DepositLoan::new(
+		client.clone(),
+	)));
+
+	// io.extend_with(LSBidingApi::to_delegate(LSBiding::new(client.clone())));
 	io.extend_with(
 		sc_consensus_babe_rpc::BabeApi::to_delegate(
 			BabeRPCHandler::new(client, shared_epoch_changes, keystore, babe_config, select_chain)
